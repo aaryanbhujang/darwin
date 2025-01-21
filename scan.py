@@ -1,35 +1,31 @@
 from monitor import Monitor
-from dump import Dump
+from interface import Interface
+#from dump import Dump
 import subprocess
-class PayloadDriver:
-    def __init__(self):
-        self.interfaces = []
-        self.active_interface = None
-    def getInterfaces(self):
-        iface_info = subprocess.run(["iwconfig"], capture_output=True, text=True)
-        split_iface_info = str(iface_info.stdout).splitlines()
-        for line in split_iface_info:
-            if not line.strip():
-                continue
-        
-            if "IEEE" in line:
-                curr_iface = line.split()
-                self.interfaces.append(curr_iface[0])
 
-    def selectInterface(self):
-        if len(self.interfaces) == 0:
-            print("[!]No interfaces detected")
-            return
-        for i in range(len(self.interfaces)):
-            print(i, ". ", self.interfaces[i])
-        while True:
-            self.active_interface = input("[?]Interface:")
-            if self.active_interface not in self.interfaces:
-                self.active_interface = None
-            else:
-                break
-        
-main = PayloadDriver()
-main.getInterfaces()
-main.selectInterface()
+ifs = Interface()
+#select interfaces
+ifaces = ifs.getInterfaces()
+if len(ifaces) == 0:
+    print("[!]No interfaces detected. Exiting")
+    exit(0)
 
+while True:    
+    for i in range (len(ifaces)):
+        print(i+1, ". ", ifaces[i])
+    active_iface_no = int(input("[?]Interface no.:"))
+    if active_iface_no < len(ifaces) and active_iface_no >= 0:
+        break
+    else:
+        active_iface_no = None
+active_interface = ifs.selectInterface(active_iface_no)
+#start monitor mode
+mon = Monitor()
+mon.startMonitorMode(active_interface)
+active_interface = ifs.selectInterface()
+print(ifs.getInterfaces())
+
+#stop monitor mode
+mon.stopMonitorMode(active_interface)
+active_interface = ifs.selectInterface()
+print(ifs.getInterfaces())
