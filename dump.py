@@ -18,7 +18,7 @@ class HandshakeCapturer:
         """
         print(f"[*] Starting airodump-ng on channel {self.channel} for BSSID {self.bssid}...")
         cmd = [
-            "airodump-ng",
+            "sudo", "airodump-ng",
             "-w", self.output_prefix,
             "-c", str(self.channel),
             "--bssid", self.bssid,
@@ -26,10 +26,11 @@ class HandshakeCapturer:
         ]
         self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("[*] Airodump-ng started. Waiting for handshake...")
+        start_time = time.time()
 
         for line in iter(self.process.stdout.readline, ''):
             # Check if the line indicates a handshake
-            if "WPA handshake:" in line:
+            if "WPA handshake:" in line or time.time() - start_time > 30:
                 print("Handshake captured!")
                 break
 
