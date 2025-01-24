@@ -1,56 +1,93 @@
 import subprocess
 import os
 import time
-
-class HandshakeCapturer:
-    def __init__(self, bssid, channel, interface, output_prefix="capture1"):
+import re
+class Dump:
+    def __init__(self):
         
-        self.bssid = bssid
-        self.channel = channel
-        self.interface = interface
-        self.output_prefix = output_prefix
-        self.cap_file = f"{output_prefix}.cap"
-        self.process = None
+        self.wifis = []
+        self.temp = []
 
-    def start_airodump(self):
+    def enumAPs(self, interface):
+        cmd = [
+             "airodump-ng", interface
+            ]
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+        print("[*]Starting A.P recon...")
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        time.sleep(2)   
+        start_time = time.time()
+        while True:
+            print("[-]Progress: ",int(time.time() - start_time),"s" )
+            output = process.stdout.readline()
+            clean_line = ansi_escape.sub('', output.strip())
+            if "Elapsed" in output:
+                self.wifis = self.temp
+                self.temp = []
+
+            self.temp.append(clean_line.strip().split())
+            print(output.strip())
+            if time.time() - start_time > 15:
+                print("[!]Recon complete")
+                break
+        self.stop_airodump(process)
+        os.system("clear")
+        counter = 0
+        drop_list = ['BSSID', 'STATION', 'PWR', 'Rate', 'Lost', 'Frames', 'Notes', 'Probes', '']
+        for i in self.wifis:
+            i = i[:10] + [' '.join(i[10:])]
+            if i == drop_list:
+                self.wifis = self.wifis[:counter]
+                break
+            counter += 1
+        final_list = self.wifis[2:-1]
+        print(i for i in final_list)
+        
+
+
+    def captureHandshake(self, interface, bssid, channel):
         """
         Start the airodump-ng process and monitor for handshake.
         """
         print(f"[*] Starting airodump-ng on channel {self.channel} for BSSID {self.bssid}...")
         cmd = [
-            "sudo", "airodump-ng",
-            "-w", self.output_prefix,
-            "-c", str(self.channel),
-            "--bssid", self.bssid,
-            self.interface
+             "airodump-ng",
+            "-w", output_prefix,
+            "-c", str(channel),
+            "--bssid", bssid,
+            interface
         ]
-        self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        time.sleep(2)
         print("[*] Airodump-ng started. Waiting for handshake...")
         start_time = time.time()
-
-        for line in iter(self.process.stdout.readline, ''):
-            # Check if the line indicates a handshake
-            if "WPA handshake:" in line or time.time() - start_time > 30:
-                print("Handshake captured!")
+        
+        print("Output Printed")
+        while True:
+            output = process.stdout.readline()
+            if output:
+                print(output)
+                if "WPA handshake:" in output:
+                    print("[*]Handshake captured!")
+                    break
+            if time.time() - start_time > 30:
+                print("[!]Timeout")
                 break
+        self.stop_airodump(process)
+            
+      
 
-        self.stop_airodump()
-
-    def stop_airodump(self):
+    def stop_airodump(self, process):
         # Stop the airodump-ng process.
-        if self.process:
+        if process:
             print("[*] Stopping airodump-ng...")
-            self.process.terminate()
-            self.process.wait()
-            self.process = None
+            process.terminate()
+            process.wait()
+            process = None
             print("[*] Airodump-ng stopped.")
 
 # Example Usage
 if __name__ == "__main__":
-    # Replace these with your values
-    BSSID = "DC:D9:AE:15:DB:19"
-    CHANNEL = 5
-    INTERFACE = "wlan0mon"
-
-    capturer = HandshakeCapturer(BSSID, CHANNEL, INTERFACE)
-    capturer.start_airodump()
+        d = Dump()
+        d.enumAPs("wlan0mon")
