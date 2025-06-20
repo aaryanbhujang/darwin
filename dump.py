@@ -1,93 +1,90 @@
 import subprocess
-import os
 import time
-import re
+import os
+import csv
+import glob
+from openpyxl import Workbook
+
 class Dump:
     def __init__(self):
-        
         self.wifis = []
-        self.temp = []
 
-    def enumAPs(self, interface):
+    def enumAPs(self, interface="wlan0mon", duration=15, output_prefix="scan_output"):
+        print(f"[*] Starting airodump-ng on {interface} for {duration} seconds...")
+
+        # Clean up old CSVs
+        for f in glob.glob(f"{output_prefix}-01.csv"):
+            os.remove(f)
+
         cmd = [
-             "airodump-ng", interface
-            ]
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
-        print("[*]Starting A.P recon...")
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        time.sleep(2)   
-        start_time = time.time()
-        while True:
-            print("[-]Progress: ",int(time.time() - start_time),"s" )
-            output = process.stdout.readline()
-            clean_line = ansi_escape.sub('', output.strip())
-            if "Elapsed" in output:
-                self.wifis = self.temp
-                self.temp = []
-
-            self.temp.append(clean_line.strip().split())
-            print(output.strip())
-            if time.time() - start_time > 15:
-                print("[!]Recon complete")
-                break
-        self.stop_airodump(process)
-        os.system("clear")
-        counter = 0
-        drop_list = ['BSSID', 'STATION', 'PWR', 'Rate', 'Lost', 'Frames', 'Notes', 'Probes', '']
-        for i in self.wifis:
-            i = i[:10] + [' '.join(i[10:])]
-            if i == drop_list:
-                self.wifis = self.wifis[:counter]
-                break
-            counter += 1
-        final_list = self.wifis[2:-1]
-        print(i for i in final_list)
-        
-
-
-    def captureHandshake(self, interface, bssid, channel):
-        """
-        Start the airodump-ng process and monitor for handshake.
-        """
-        print(f"[*] Starting airodump-ng on channel {self.channel} for BSSID {self.bssid}...")
-        cmd = [
-             "airodump-ng",
-            "-w", output_prefix,
-            "-c", str(channel),
-            "--bssid", bssid,
+            "airodump-ng",
+            "--write", output_prefix,
+            "--write-interval", "1",
+            "--output-format", "csv",
             interface
         ]
-        
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        time.sleep(2)
-        print("[*] Airodump-ng started. Waiting for handshake...")
-        start_time = time.time()
-        
-        print("Output Printed")
-        while True:
-            output = process.stdout.readline()
-            if output:
-                print(output)
-                if "WPA handshake:" in output:
-                    print("[*]Handshake captured!")
-                    break
-            if time.time() - start_time > 30:
-                print("[!]Timeout")
-                break
-        self.stop_airodump(process)
-            
-      
+
+        process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        try:
+            time.sleep(duration)
+            self.stop_airodump(process)
+        except KeyboardInterrupt:
+            self.stop_airodump(process)
+
+        print("[*] Recon complete. Parsing CSV...")
+
+        csv_file = f"{output_prefix}-01.csv"
+        if os.path.exists(csv_file):
+            self.export_to_excel(csv_file)
+        else:
+            print("[!] No CSV output found. Did airodump-ng run properly?")
 
     def stop_airodump(self, process):
-        # Stop the airodump-ng process.
         if process:
             print("[*] Stopping airodump-ng...")
             process.terminate()
-            process.wait()
-            process = None
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
             print("[*] Airodump-ng stopped.")
 
-# Example Usage
+    def export_to_excel(self, csv_file, output_excel="wifi_scan.xlsx"):
+        with open(csv_file, "r", encoding="utf-8", errors="ignore") as f:
+            reader = csv.reader(f)
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+
+        ap_data = []
+        client_data = []
+        reading_clients = False
+
+        for row in rows:
+            if row and "Station MAC" in row[0]:
+                reading_clients = True
+                continue
+            if not reading_clients:
+                ap_data.append(row)
+            else:
+                client_data.append(row)
+
+        wb = Workbook()
+
+        # Write Access Points
+        ws_ap = wb.active
+        ws_ap.title = "Access_Points"
+        for row in ap_data:
+            ws_ap.append(row)
+
+        # Write Clients
+        ws_clients = wb.create_sheet(title="Clients")
+        for row in client_data:
+            ws_clients.append(row)
+
+        wb.save(output_excel)
+        print(f"[+] Data saved to Excel file: {output_excel}")
+
+# Example usage
 if __name__ == "__main__":
-        d = Dump()
-        d.enumAPs("wlan0mon")
+    d = Dump()
+    d.enumAPs()
