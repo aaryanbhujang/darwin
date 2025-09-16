@@ -8,7 +8,7 @@ class MonitorMode:
         if "does not exist" in output.stdout:
             print("[!]ERROR: Interface not detected", output.stdout)
     def stopMonitorMode(self):
-        output = subprocess.run(["airmon-ng", "stop", self.interface], capture_output=True, text=True)
+        output = subprocess.run(["airmon-ng", "stop", self.interface + "mon"], capture_output=True, text=True)
         print(output.stdout)
         if "does not exist" in output.stdout:
             print("[!]ERROR: Interface not detected", output.stdout)
