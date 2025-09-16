@@ -3,7 +3,7 @@ import time
 import os
 import shutil
 
-def capture_handshake(write_prefix, channel, bssid, interface, timeout=120, write_dir="."):
+def capture_handshake(write_prefix, channel, bssid, interface, timeout=60, write_dir="."):
     """
     - Capture WPA handshake using airodump-ng.
     - Stops when handshake is detected or timeout occurs.
