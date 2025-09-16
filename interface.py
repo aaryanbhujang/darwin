@@ -15,7 +15,7 @@ class Interface:
             if "IEEE" in line:
                 curr_iface = line.split()
                 self.interfaces.append(curr_iface[0])
-            return self.interfaces
+        return self.interfaces
 
     def selectInterface(self, serial = None):
         if len(self.interfaces) == 0:

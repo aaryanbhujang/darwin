@@ -1,7 +1,6 @@
 from monitor import MonitorMode
 from interface import Interface
 from dump import Dump
-import subprocess
 
 ifs = Interface()
 #select interfaces
