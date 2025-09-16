@@ -57,13 +57,7 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         interface=active_interface,
         timeout=60
     )
-
-    if cap_file:
-        print(f"[+] Handshake captured for {ssid} ({bssid})")
-        stop_event.set()
-    else:
-        print(f"[-] No handshake captured for {ssid} ({bssid})")
-
+    stop_event.set()
     deauth_thread.join()
     print(f"[*] Finished with {ssid} ({bssid})")
 
