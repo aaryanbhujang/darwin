@@ -13,7 +13,7 @@ def load_scan_data():
     df.columns = [c.strip().upper() for c in df.columns]
     print(df.columns)
     # enforce expected fields
-    for col in ["ESSID", "BSSID", "Privacy", "First time seen"]:
+    for col in ["ESSID", "BSSID", "PRIVACY", "FIRST TIME SEEN"]:
         if col not in df.columns:
             raise ValueError(f"Missing expected column: {col}")
 
@@ -25,20 +25,24 @@ def get_stats_from_excel():
     df = load_scan_data()
 
     # --- Pie chart ---
-    pie_chart = df["Privacy"].fillna("UNKNOWN").value_counts().to_dict()
+    pie_chart = df["PRIVACY"].fillna("UNKNOWN").value_counts().to_dict()
 
     # --- Line chart (encryption trend over time) ---
-    # bucket by minute
-    df["First time seen"] = pd.to_datetime(df["First time seen"], errors="coerce")
-    df["BUCKET"] = df["First time seen"].dt.floor("T")
+    # choose granularity depending on your data
+    df["FIRST TIME SEEN"] = pd.to_datetime(df["FIRST TIME SEEN"], errors="coerce")
+
+    # try seconds if you want finer granularity
+    df["BUCKET"] = df["FIRST TIME SEEN"].dt.floor("5S")  # 5-second intervals
+
     trend = (
-        df.groupby(["BUCKET", "Privacy"])
+        df.groupby(["BUCKET", "PRIVACY"])
         .size()
         .reset_index(name="count")
-        .pivot(index="BUCKET", columns="Privacy", values="count")
+        .pivot(index="BUCKET", columns="PRIVACY", values="count")
         .fillna(0)
         .reset_index()
     )
+
     line_chart = []
     for _, row in trend.iterrows():
         entry = {"time": row["BUCKET"].isoformat()}
@@ -47,25 +51,30 @@ def get_stats_from_excel():
                 entry[col if col else "UNKNOWN"] = int(row[col])
         line_chart.append(entry)
 
+        
+
     # --- Anomalies & Findings ---
     anomalies, findings = set(), []
     vulnerable_count = 0
+    issue = None
 
     for _, r in df.iterrows():
         essid = str(r.get("ESSID", "")).strip() or None
         bssid = str(r.get("BSSID", "")).strip() or None
-        enc = str(r.get("Privacy", "")) if r.get("Privacy") else "UNKNOWN"
-
+        enc = str(r.get("PRIVACY", "")).strip().upper() or "UNKNOWN"
         issue = None
-        if enc in ("OPEN", "UNKNOWN", ""):
+        print(enc)
+        if enc == "OPN":
             issue = "OPEN network"
+            
         elif enc in ("WEP", "WPA"):
             issue = f"Weak encryption ({enc})"
-
+        print(f"ESSID={essid}, BSSID={bssid}, PRIVACY={enc}, ISSUE={issue}")
         if issue:
             anomalies.add(f"{issue} detected: {essid or bssid}")
-            findings.append({"essid": essid, "bssid": bssid, "issue": issue})
             vulnerable_count += 1
+        findings.append({"essid": essid, "bssid": bssid, "issue": issue})
+            
 
     # --- Metrics ---
     total_aps = len(df)
