@@ -36,7 +36,6 @@ d.enumAPs(interface = active_interface)
 wb = load_workbook("wifi_scan.xlsx")
 ws = wb["Access_Points"]
 
-# Skip header row, adjust indices as needed for your sheet
 for row in ws.iter_rows(min_row=2, values_only=True):
     if not row or not row[0] or "BSSID" in str(row[0]):
         continue
@@ -55,9 +54,8 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         channel=channel,
         bssid=bssid,
         interface=active_interface,
-        timeout=60
+        stop_event=stop_event  # Pass the stop_event here
     )
-    stop_event.set()
     deauth_thread.join()
     print(f"[*] Finished with {ssid} ({bssid})")
 
