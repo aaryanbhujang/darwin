@@ -6,6 +6,8 @@ from openpyxl import load_workbook
 from replay import capture_handshake, deauth_attack
 from crack import AircrackWrapper
 import os
+import subprocess
+import shutil
 
 ifs = Interface()
 #select interfaces
@@ -83,3 +85,21 @@ for row in ws.iter_rows(min_row=2, values_only=True):
 mon.stopMonitorMode()
 active_interface = ifs.selectInterface()
 print(ifs.getInterfaces())
+
+
+
+# Cleanup leftover handshake-* files
+_rm_cmd = "rm -v handshake*"
+if shutil.which("rm"):
+    try:
+        subprocess.run(_rm_cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"[!] rm command failed: {e}")
+else:
+    for _fname in os.listdir("."):
+        if _fname.startswith("handshake") and os.path.isfile(_fname):
+            try:
+                os.remove(_fname)
+                print(f"Removed {_fname}")
+            except Exception as e:
+                print(f"Failed to remove {_fname}: {e}")
