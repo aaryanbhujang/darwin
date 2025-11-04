@@ -5,13 +5,15 @@ import re
 from datetime import datetime
 
 class AircrackWrapper:
-    def __init__(self, cap_file, wordlists):
+    def __init__(self, cap_file, bssid, wordlists):
         """
         Initialize the automation tool.
         :param cap_file: Path to the .cap file containing the captured handshake.
+        :param bssid: Target AP BSSID to scope cracking.
         :param wordlists: List of wordlist files to try.
         """
         self.cap_file = cap_file
+        self.bssid = bssid
         self.wordlists = wordlists
 
     def validate_files(self):
@@ -31,27 +33,23 @@ class AircrackWrapper:
 
     def run_aircrack(self, wordlist):
         """
-        Run aircrack-ng with a single wordlist.
+        Run aircrack-ng with a single wordlist and BSSID filter.
         :param wordlist: Path to the wordlist file.
         :return: Tuple (found:bool, password:str or None)
         """
-        print(f"[*] Trying wordlist: {wordlist}...")
+        print(f"[*] Trying wordlist: {wordlist} against BSSID: {self.bssid} ...")
         aircrack_cmd = [
             "aircrack-ng",
-            "-w", wordlist,  # Specify the wordlist file
-            self.cap_file    # Specify the .cap file
+            "-w", wordlist,      # Specify the wordlist file
+            "-b", self.bssid,    # Limit cracking to this BSSID
+            self.cap_file        # Specify the .cap file
         ]
 
         try:
-            # Capture output from aircrack-ng
-            result = subprocess.run(
-                aircrack_cmd, text=True, capture_output=True
-            )
+            result = subprocess.run(aircrack_cmd, text=True, capture_output=True)
             output = result.stdout + "\n" + result.stderr
 
-            # Check if a key was found
             if "KEY FOUND!" in output:
-                # Try to parse the key (usually shown in square brackets in output)
                 m = re.search(r"KEY FOUND!\s+\[([^\]]+)\]", output)
                 password = m.group(1) if m else output.splitlines()[-1].strip()
                 print("[+] Key successfully cracked!")
@@ -71,8 +69,8 @@ class AircrackWrapper:
         found, password = self.run_aircrack(wordlist)
         if found and password:
             csv_file = "passwords.csv"
-            header = ["timestamp", "cap_file", "wordlist", "password"]
-            row = [datetime.utcnow().isoformat(), os.path.abspath(self.cap_file), wordlist, password]
+            header = ["timestamp", "cap_file", "bssid", "wordlist", "password"]
+            row = [datetime.utcnow().isoformat(), os.path.abspath(self.cap_file), self.bssid, wordlist, password]
             write_header = not os.path.exists(csv_file)
             try:
                 with open(csv_file, "a", newline="", encoding="utf-8") as f:
@@ -101,9 +99,10 @@ class AircrackWrapper:
             print("[-] Exhausted all wordlists. No key found.")
 
 if __name__ == "__main__":
-    # Example usage
     cap_file = input("Enter the path to the .cap file (e.g., handshake.cap): ")
+    bssid = input("Enter the target BSSID (e.g., AA:BB:CC:DD:EE:FF): ").strip()
     wordlists = input("Enter paths to wordlists, separated by commas (e.g., wordlist1.txt,wordlist2.txt): ").split(",")
+    wordlists = [w.strip() for w in wordlists if w.strip()]
 
-    aircrack = AircrackWrapper(cap_file, wordlists)
+    aircrack = AircrackWrapper(cap_file, bssid, wordlists)
     aircrack.start_cracking()

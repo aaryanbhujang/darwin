@@ -67,7 +67,7 @@ for row in ws.iter_rows(min_row=2, values_only=True):
     if cap_file:
         # ensure rockyou exists
         if os.path.exists(ROCKYOU):
-            aw = AircrackWrapper(cap_file, [ROCKYOU])
+            aw = AircrackWrapper(cap_file, bssid, [ROCKYOU])
             cracker_thread = threading.Thread(target=aw.run_and_save, args=(ROCKYOU,))
             cracker_thread.daemon = True
             cracker_thread.start()
