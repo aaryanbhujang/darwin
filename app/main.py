@@ -6,7 +6,7 @@ def create_app():
     app = Flask(__name__)
     CORS(app, resources={r"/*": {"origins": "*"}})  # allow React frontend to fetch data from Flask
 
-    app.config["SCAN_EXCEL"] = "wifi_scan.xlsx"
+    app.config["SCAN_EXCEL"] = "../wifi_scan.xlsx"
     app.register_blueprint(result_bp, url_prefix="/results")
 
     @app.route("/")

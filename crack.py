@@ -1,5 +1,8 @@
 import subprocess
 import os
+import csv
+import re
+from datetime import datetime
 
 class AircrackWrapper:
     def __init__(self, cap_file, wordlists):
@@ -30,11 +33,11 @@ class AircrackWrapper:
         """
         Run aircrack-ng with a single wordlist.
         :param wordlist: Path to the wordlist file.
-        :return: True if a key is found, False otherwise.
+        :return: Tuple (found:bool, password:str or None)
         """
         print(f"[*] Trying wordlist: {wordlist}...")
         aircrack_cmd = [
-            "sudo", "aircrack-ng",
+            "aircrack-ng",
             "-w", wordlist,  # Specify the wordlist file
             self.cap_file    # Specify the .cap file
         ]
@@ -44,19 +47,44 @@ class AircrackWrapper:
             result = subprocess.run(
                 aircrack_cmd, text=True, capture_output=True
             )
-            output = result.stdout
+            output = result.stdout + "\n" + result.stderr
 
             # Check if a key was found
             if "KEY FOUND!" in output:
+                # Try to parse the key (usually shown in square brackets in output)
+                m = re.search(r"KEY FOUND!\s+\[([^\]]+)\]", output)
+                password = m.group(1) if m else output.splitlines()[-1].strip()
                 print("[+] Key successfully cracked!")
-                print(output.splitlines()[-1])  # Print the cracked key
-                return True
+                print(password)
+                return True, password
             else:
                 print("[-] Key not found with this wordlist.")
-                return False
+                return False, None
         except Exception as e:
             print(f"[!] An error occurred: {e}")
-            return False
+            return False, None
+
+    def run_and_save(self, wordlist):
+        """
+        Run aircrack with the provided wordlist and save any found key to passwords.csv.
+        """
+        found, password = self.run_aircrack(wordlist)
+        if found and password:
+            csv_file = "passwords.csv"
+            header = ["timestamp", "cap_file", "wordlist", "password"]
+            row = [datetime.utcnow().isoformat(), os.path.abspath(self.cap_file), wordlist, password]
+            write_header = not os.path.exists(csv_file)
+            try:
+                with open(csv_file, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    if write_header:
+                        writer.writerow(header)
+                    writer.writerow(row)
+                print(f"[+] Saved cracked password to {csv_file}")
+            except Exception as e:
+                print(f"[!] Failed to write to {csv_file}: {e}")
+            return True
+        return False
 
     def start_cracking(self):
         """
@@ -66,7 +94,7 @@ class AircrackWrapper:
             return
 
         for wordlist in self.wordlists:
-            if self.run_aircrack(wordlist):
+            if self.run_aircrack(wordlist)[0]:
                 print("[+] Stopping as the key has been cracked.")
                 break
         else:
