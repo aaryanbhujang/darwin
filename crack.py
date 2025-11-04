@@ -31,10 +31,11 @@ class AircrackWrapper:
 
         return True
 
-    def run_aircrack(self, wordlist):
+    def run_aircrack(self, wordlist, timeout=None):
         """
         Run aircrack-ng with a single wordlist and BSSID filter.
         :param wordlist: Path to the wordlist file.
+        :param timeout: Optional timeout in seconds for the subprocess.
         :return: Tuple (found:bool, password:str or None)
         """
         print(f"[*] Trying wordlist: {wordlist} against BSSID: {self.bssid} ...")
@@ -46,7 +47,7 @@ class AircrackWrapper:
         ]
 
         try:
-            result = subprocess.run(aircrack_cmd, text=True, capture_output=True)
+            result = subprocess.run(aircrack_cmd, text=True, capture_output=True, timeout=timeout)
             output = result.stdout + "\n" + result.stderr
 
             if "KEY FOUND!" in output:
@@ -58,15 +59,19 @@ class AircrackWrapper:
             else:
                 print("[-] Key not found with this wordlist.")
                 return False, None
+        except subprocess.TimeoutExpired:
+            print(f"[-] aircrack-ng timed out after {timeout} seconds for wordlist {wordlist}.")
+            return False, None
         except Exception as e:
             print(f"[!] An error occurred: {e}")
             return False, None
 
-    def run_and_save(self, wordlist):
+    def run_and_save(self, wordlist, timeout=None):
         """
-        Run aircrack with the provided wordlist and save any found key to passwords.csv.
+        Run aircrack with the provided wordlist (with optional timeout)
+        and save any found key to passwords.csv.
         """
-        found, password = self.run_aircrack(wordlist)
+        found, password = self.run_aircrack(wordlist, timeout=timeout)
         if found and password:
             csv_file = "passwords.csv"
             header = ["timestamp", "cap_file", "bssid", "wordlist", "password"]
