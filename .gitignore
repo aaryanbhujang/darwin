@@ -1,0 +1,49 @@
+############################
+# Python
+############################
+venv/
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+
+############################
+# Node / Frontend
+############################
+node_modules/
+dist/
+
+############################
+# Lock files (choose ONE)
+############################
+# If using npm:
+bun.lockb
+
+# If using bun, comment above and use:
+# package-lock.json
+
+############################
+# OS / Editor junk
+############################
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.log
+
+############################
+# Forensics / Generated
+############################
+*.csv
+*.pcap
+*.pcapng
+*.img
+*.dd
+*.raw
+*.bin
+*.enc
+*.xlsx
+output/
+recovered/
